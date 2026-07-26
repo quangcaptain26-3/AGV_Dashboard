@@ -1,0 +1,39 @@
+{
+  "_comment": "Cấu hình điểm đặc biệt + ca làm việc của AGV. Sửa file này không cần sửa code.",
+
+  "threshold_min": 12,
+  "denom_hours": 24,
+
+  "excluded_points": {
+    "_comment": "Các điểm liệt kê ở đây không tính bất thường dù dừng bao lâu (giữ theo nhóm cho dễ hiểu).",
+    "Home": ["232", "1025", "259"],
+    "Charging": ["239"]
+  },
+
+  "elevator": {
+    "_comment": "Điểm thang máy dùng ngưỡng riêng (threshold_min); dừng quá mốc này mới tính bất thường.",
+    "threshold_min": 3,
+    "points": ["221", "1294", "223", "1767"]
+  },
+
+  "shift": {
+    "_comment": "Giờ ca ngày/đêm. Ca đêm kết thúc vào rạng sáng hôm sau.",
+    "day_start": "08:00",
+    "day_end": "19:59",
+    "night_start": "20:00",
+    "night_end": "07:59"
+  },
+
+  "display": {
+    "_comment": "Ngưỡng màu (%): dưới rate_ok = xanh, tới rate_warn = vàng, trên = đỏ.",
+    "rate_ok": 5,
+    "rate_warn": 10
+  },
+
+  "paths": {
+    "_comment": "Thư mục log, xuất báo cáo và Tasks Log (CSV nhiệm vụ).",
+    "default_log_dir": "",
+    "default_output_dir": "",
+    "task_log_dir": ""
+  }
+}

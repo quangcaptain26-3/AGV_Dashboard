@@ -1,0 +1,13 @@
+# AGV Analyzer - thư viện PINNED (khuyến nghị Python 3.10; tương thích 3.8–3.10)
+# Cài bằng: py -3.10 -m pip install -r requirements.txt
+#
+# Lưu ý:
+#   - Khuyến nghị build/dev với Python 3.10.x (x64 Windows).
+#   - PyQt5-sip 12.13.0 vẫn chạy tốt trên 3.10; nếu cần có thể nâng sau khi test.
+#   - Không dùng pandas/numpy (phân tích log .txt + Tasks CSV bằng stdlib + openpyxl).
+
+PyQt5==5.15.10
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.13.0
+openpyxl==3.1.2
+pyinstaller==5.13.2
