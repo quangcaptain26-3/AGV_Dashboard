@@ -1,0 +1,2 @@
+1, chương  trình AbnormalAnalyse a mong muốn sẽ tự động chạy dow về chữ không phải chạy thủ công
+2, ở chương trình phân tích khi xuất ra mong muốn sẽ hiển thị theo ngày mình cần xuất chứ không phải ra file ghi là tổng quan AGV
