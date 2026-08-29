@@ -1,0 +1,575 @@
+-- Normalize + check_value
+def normalize_switch(text):
+    """Chuẩn hóa tên switch -> 'eero Switch'"""
+    if not text:
+        return ""
+    text = text.strip()
+    replacements = {
+        'eeroSwltch': 'eero Switch',
+        'eeroSw1tch': 'eero Switch',
+        'eero5witch': 'eero Switch',
+        'eeroSwitch': 'eero Switch',
+        'eeroswitch': 'eero Switch',
+        'eer0Switch': 'eero Switch',
+        'eer0 Swltch': 'eero Switch',
+        'eero Swltch': 'eero Switch',
+        'eero Sw1tch': 'eero Switch',
+        'eero  Switch': 'eero Switch',
+        'eero  Swltch': 'eero Switch',
+    }
+    for wrong, correct in replacements.items():
+        text = text.replace(wrong, correct)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def normalize_model(text):
+    """Chuẩn hóa model -> 'M/N: WH01'"""
+    if not text:
+        return ""
+    text = text.strip()
+    text = text.replace('WHO', 'WH0')
+    text = text.replace('XEO', 'XE0')
+    text = re.sub(r'M/N\s*:\s*', 'M/N: ', text, flags=re.IGNORECASE)
+    text = re.sub(r'M/N\s+', 'M/N: ', text, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def normalize_input(text):
+    """Chuẩn hóa input -> 'Input: 100-240V\~, 10.55A, 50-60Hz'"""
+    if not text:
+        return ""
+    text = text.strip()
+    text = text.replace('lnput', 'Input')
+    text = text.replace('INPUT', 'Input')
+    text = text.replace('input', 'Input')
+    text = text.replace('100-240V-', '100-240V\~')
+    text = re.sub(r'(\d+\.?\d*A)[.,](\d)', r'\1,\2', text)
+    text = re.sub(r'Input\s*:\s*', 'Input: ', text, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def normalize_output(text):
+    """Chuẩn hóa output -> 'Output: 54.5V⎓, 1.65A, per port'"""
+    if not text:
+        return ""
+    text = text.strip()
+    text = text.replace('0utput', 'Output')
+    text = text.replace('OUTPUT', 'Output')
+    text = text.replace('output', 'Output')
+    text = text.replace('perp0rt', 'per port')
+    text = text.replace('perport', 'per port')
+    text = text.replace('per p0rt', 'per port')
+    text = text.replace('V-', 'V⎓')
+    text = re.sub(r'(\d+\.?\d*A)[.,](\d)', r'\1,\2', text)
+    text = re.sub(r'Output\s*:\s*', 'Output: ', text, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def normalize_power(text):
+    """Chuẩn hóa power -> '720W'"""
+    if not text:
+        return ""
+    text = text.strip()
+    text = text.replace('O', '0')
+    text = text.replace('o', '0')
+    text = text.replace('72OW', '720W')
+    text = text.replace('I72OW', '720W')
+    text = text.replace('l72OW', '720W')
+    text = text.replace('|72OW', '720W')
+    return re.sub(r'\s+', '', text)
+
+
+def normalize_sn(text):
+    """Chuẩn hóa S/N"""
+    if not text:
+        return ""
+    text = text.strip()
+    text = re.sub(r'S/N\s*:\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'S/N\s+', '', text, flags=re.IGNORECASE)
+    text = text.replace('O', '0')
+    text = text.replace('l', 'I')
+    return text.strip()
+
+
+def check_value(value, expected):
+    """Kiểm tra value có khớp expected không (expected có thể là str hoặc list)"""
+    if expected is None or value is None:
+        return False
+    if isinstance(expected, list):
+        return value in expected
+    return value == expected
+
+
+-- Cambrian Space
+def cambrian_space(self, cambrian_result_list, cambrian_img, cambrian_label_list):
+        try:
+            AOI_inference_step = []
+            cambrian_img = cv2.cvtColor(cambrian_img, cv2.COLOR_GRAY2RGB)
+
+            for each_label in range(len(cambrian_label_list)):
+                if cambrian_result_list[each_label] == "NG" or cambrian_result_list[each_label] != str(
+                        cambrian_label_list[each_label][4]):
+
+                    cv2.rectangle(cambrian_img,
+                                  (cambrian_label_list[each_label][2], cambrian_label_list[each_label][0]),
+                                  (cambrian_label_list[each_label][3], cambrian_label_list[each_label][1]), (0, 0, 255),
+                                  10,
+                                  15)
+                    text1 = str(cambrian_result_list[each_label])
+                    org = (int(cambrian_label_list[each_label][2]), int(cambrian_label_list[each_label][0]) - 50)
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    fontScale = 2
+                    color = (0, 0, 255)
+                    thickness = 6
+                    cv2.putText(cambrian_img, text1, org, font, fontScale, color, thickness)
+                    AOI_inference_step.append(False)
+
+                elif cambrian_result_list[each_label] != "NG" and cambrian_result_list[each_label] == str(
+                        cambrian_label_list[each_label][4]):
+
+                    cv2.rectangle(cambrian_img,
+                                  (cambrian_label_list[each_label][2], cambrian_label_list[each_label][0]),
+                                  (cambrian_label_list[each_label][3], cambrian_label_list[each_label][1]),
+                                  (0, 255, 0), 10,
+                                  15)
+                    text1 = str(cambrian_result_list[each_label])
+                    org = (
+                        int(cambrian_label_list[each_label][2]), int(cambrian_label_list[each_label][0]) - 50)
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    fontScale = 2
+                    color = (0, 255, 0)
+                    thickness = 6
+                    cv2.putText(cambrian_img, text1, org, font, fontScale, color, thickness)
+                    AOI_inference_step.append(True)
+
+            if False not in AOI_inference_step:
+                cv2.imwrite(self.pciture_save + "//" + todaytime + "//" + self.img_time + "_pass.jpg",
+                            cambrian_img)
+                return "Pass"
+            elif False in AOI_inference_step:
+                cv2.imwrite(self.pciture_save + "//" + todaytime + "//" + self.img_time + "_fail.jpg",
+                            cambrian_img)
+                return "Fail"
+        except Exception as e:
+            logging.error(str(e))
+            self.myuihand.textbox.emit(str(e))
+
+
+-- Cambrian Space SN
+def cambrian_space_SN(self, cambrian_result_list, cambrian_img, cambrian_label_list, save_sn=""):
+        try:
+            AOI_inference_step = []
+            cambrian_img = cv2.cvtColor(cambrian_img, cv2.COLOR_GRAY2RGB)
+
+            for each_label in range(len(cambrian_label_list)):
+                if cambrian_result_list[each_label] == "NG" or cambrian_result_list[each_label] != str(
+                        cambrian_label_list[each_label][4]):
+
+                    cv2.rectangle(cambrian_img,
+                                  (cambrian_label_list[each_label][2], cambrian_label_list[each_label][0]),
+                                  (cambrian_label_list[each_label][3], cambrian_label_list[each_label][1]), (0, 0, 255),
+                                  10,
+                                  15)
+                    text1 = str(cambrian_result_list[each_label])
+                    org = (int(cambrian_label_list[each_label][2]), int(cambrian_label_list[each_label][0]) - 50)
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    fontScale = 2
+                    color = (0, 0, 255)
+                    thickness = 6
+                    cv2.putText(cambrian_img, text1, org, font, fontScale, color, thickness)
+                    AOI_inference_step.append(False)
+
+                elif cambrian_result_list[each_label] != "NG" and cambrian_result_list[each_label] == str(
+                        cambrian_label_list[each_label][4]):
+
+                    cv2.rectangle(cambrian_img,
+                                  (cambrian_label_list[each_label][2], cambrian_label_list[each_label][0]),
+                                  (cambrian_label_list[each_label][3], cambrian_label_list[each_label][1]),
+                                  (0, 255, 0), 10,
+                                  15)
+                    text1 = str(cambrian_result_list[each_label])
+                    org = (
+                        int(cambrian_label_list[each_label][2]), int(cambrian_label_list[each_label][0]) - 50)
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    fontScale = 2
+                    color = (0, 255, 0)
+                    thickness = 6
+                    cv2.putText(cambrian_img, text1, org, font, fontScale, color, thickness)
+                    AOI_inference_step.append(True)
+
+            if False not in AOI_inference_step:
+                cv2.imwrite(self.pciture_save + "//" + todaytime + "//" + save_sn + "_" + self.img_time + "_pass.jpg",
+                            cambrian_img)
+                return "Pass"
+            elif False in AOI_inference_step:
+                cv2.imwrite(self.pciture_save + "//" + todaytime + "//" + save_sn + "_" + self.img_time + "_fail.jpg",
+                            cambrian_img)
+                return "Fail"
+        except Exception as e:
+            logging.error(str(e))
+            self.myuihand.textbox.emit(str(e))
+
+
+
+-- Hàm khai báo các sản phẩm --
+
+check_label_xe2 = {
+    "switch": "eero Switch",
+    "model": ["M/N: XE02", "M/N: XEO2"],
+    "input": ["Input: 100-240V\~,1.67A,50-60Hz", "Input: 100-240V~,1.67A,50-60Hz"]
+}
+
+
+-- Hàm chính phụ trách chương trình show_image_Label_check ---
+    def show_image_Label_check(self, image_numpy, stepname):
+        try:
+            self.thissn = self.scaninfo
+            cv2.imwrite(
+                self.pciture_save + "/" + todaytime + "//" + self.thissn + "_" + stepname + "_" + self.img_time + ".jpg",
+                image_numpy)
+            image_numpy = cv2.cvtColor(image_numpy, cv2.COLOR_BGR2GRAY)
+
+            if stepname == "STEP 1":
+                if self.sfis_choose == True:
+                    print(self.thissn)
+                    liaohao = (self.mysfis.get_sfis_90(self.thissn)).split("\x7f")[3].split("/")[0]
+                    print(liaohao)
+
+                    # ============================================================
+                    # GÁN need_check DỰA TRÊN LIAOHAO
+                    # ============================================================
+                    if ("WORMHOLE.4" in liaohao or "WORMHOLE4" in liaohao):
+                        self.eero_model = "M/N: WH01"
+                        self.eero_model1 = "M/N: WHO1"
+                        need_check = check_label_worm4
+                    elif ("WORMHOLE.2" in liaohao or "WORMHOLE2" in liaohao):
+                        self.eero_model = "M/N: WH02"
+                        self.eero_model1 = "M/N: WHO2"
+                        need_check = check_label_worm2
+                    elif ("XENIA.2" in liaohao or "XENIA2" in liaohao):
+                        self.eero_model = "M/N: XE02"
+                        self.eero_model1 = "M/N: XEO2"
+                        need_check = check_label_xe2
+                    elif ("XENIA.4" in liaohao or "XENIA4" in liaohao):
+                        self.eero_model = "M/N: XE01"
+                        self.eero_model1 = "M/N: XEO1"
+                        need_check = check_label_xe4
+                    else:
+                        logging.error(f"Unknown liaohao: {liaohao}")
+                        self.myuihand.textbox.emit(f"Unknown liaohao: {liaohao}")
+                        return
+
+                    print(self.eero_model, self.eero_model1)
+                    print(need_check)
+
+                    step1_check = []
+                    step1_check_draw = []
+                    ok1 = self.barcode_point
+
+                    for shape in ok1["shapes"]:
+                        label = shape['label']
+                        points = shape["points"]
+
+                        if "1" in label or "2" in label or "3" in label or "4" in label or "5" in label or "6" in label:
+                            valuelist = [int(points[0][1]), int(points[1][1]), int(points[0][0]), int(points[1][0]),
+                                         label]
+                            y1, y2, x1, x2, label = valuelist
+                            cut_img_step1 = image_numpy[int(y1):int(y2), int(x1):int(x2)]
+                            step1_check_draw.append(valuelist)
+                            step1_check.append(cut_img_step1)
+                            # cv2.imwrite(
+                            #     self.pciture_save + "//" + todaytime + "//" + self.img_time + "_" + self.scaninfo + "_Dimension_check_gray.jpg",
+                            #     cut_img_step1)
+
+                        elif label == "model":
+                            valuelist = [int(points[0][1]), int(points[1][1]), int(points[0][0]), int(points[1][0]),
+                                         label]
+                            y1, y2, x1, x2, label = valuelist
+                            cut_img = image_numpy[int(y1):int(y2), int(x1):int(x2)]
+                            cv2.imwrite("source/model.jpg", cut_img)
+
+                    need_show1 = cv2.imread("source/model.jpg")
+                    need_show2 = cv2.imread("source/XE02.jpg")
+
+                    if self.cambrian_is_open:
+                        self.lineEdit_8.setText(self.thissn)
+
+                        if self.sfis_choose == True:
+                            # ============================================================
+                            # CHECK ROUTE
+                            # ============================================================
+                            self.sfisreturn = self.mysfis.check_route(self.thissn)
+                            if self.sfisreturn[0] == "0":
+                                logging.info(f"check route FAIL")
+                                self.myuihand.textbox.emit("check route FAIL")
+
+                                if "[LF#:0]" in self.sfisreturn and "[REPAIR OF" in self.sfisreturn:
+                                    sfisrepairreturn = self.mysfis.repair_SN(self.thissn)
+                                    if sfisrepairreturn[0] == "1":
+                                        logging.info(f"first auto repair OK")
+                                        self.myuihand.textbox.emit(f"first auto repair OK")
+                                        self.check_result_OK = True
+                                    elif sfisrepairreturn[0] == "0":
+                                        logging.info(f"first auto repair NG")
+                                        self.myuihand.textbox.emit(f"first auto repair NG")
+                                        self.check_result_OK = False
+                                elif "[LF#:1]" in self.sfisreturn and "[REPAIR OF" in self.sfisreturn:
+                                    sfisrepairreturn = self.mysfis.repair_SN(self.thissn)
+                                    if sfisrepairreturn[0] == "1":
+                                        logging.info(f"second auto repair OK")
+                                        self.myuihand.textbox.emit(f"second auto repair OK")
+                                        self.check_result_OK = True
+                                    elif sfisrepairreturn[0] == "0":
+                                        logging.info(f"second auto repair NG")
+                                        self.myuihand.textbox.emit(f"second auto repair NG")
+                                        self.check_result_OK = False
+
+                            elif self.sfisreturn[0] == "1":
+                                logging.info(f"check route OK")
+                                self.myuihand.textbox.emit("check route OK")
+                                self.check_result_OK = True
+
+                            self.check_result_OK = True
+
+                            if self.check_result_OK:
+                                # ============================================================
+                                # OCR
+                                # ============================================================
+                                ocr = PaddleOCR(use_gpu=False, use_angle_cls=True, lang="ch", )
+                                img_path = "source/model.jpg"
+                                result = ocr.ocr(img_path, cls=True)
+
+                                # Khởi tạo giá trị mặc định
+                                self.switch = ""
+                                self.model = ""
+                                # self.power = ""
+                                self.input = ""
+                                # self.output = ""
+                                self.sn_check = ""
+
+                                for each_result in result[0]:
+                                    text_raw = each_result[1][0]
+
+                                    print(each_result[1][0])
+
+                                    if "M/N:" in text_raw or "M/N" in text_raw:
+                                        text = re.sub(r'\s+', '', text_raw)
+
+                                        m = re.search(r'^(.*?)M/N', text, re.I)
+                                        if m:
+                                            self.switch = normalize_switch(m.group(1).replace("|", "").strip())
+                                        else:
+                                            self.switch = ""
+
+                                        idx = text.upper().find("M/N:")
+                                        if idx != -1:
+                                            self.model = normalize_model(text[idx:idx + 9])
+                                        else:
+                                            self.model = ""
+
+                                        # power_text = text[idx + 9:] if idx != -1 else text
+                                        # self.power = normalize_power(power_text.replace("|", "").strip())
+
+                                        print(f"Switch: '{self.switch}', Model: '{self.model}'")
+
+                                    elif "Input" in text_raw:
+                                        # parts = text_raw.split("|")
+                                        # if len(parts) >= 2:
+                                        self.input = normalize_input(text_raw)
+                                        #     self.output = normalize_output(parts[1].strip())
+                                        # else:
+                                        #     self.output = normalize_output(text_raw.strip())
+                                        print(f"Input: '{self.input}'")
+
+                                    elif "S/N" in text_raw:
+                                        self.sn_check = normalize_sn(text_raw)
+                                        print(f"SN: '{self.sn_check}'")
+
+                                # ============================================================
+                                # KIỂM TRA (GỌN - DÙNG check_value)
+                                # ============================================================
+                                model_ok = check_value(self.model, need_check.get("model"))
+                                switch_ok = check_value(self.switch, need_check.get("switch"))
+                                input_ok = check_value(self.input, need_check.get("input"))
+                                # output_ok = check_value(self.output, need_check.get("output"))
+                                # power_ok = check_value(self.power, need_check.get("power"))
+                                sn_ok = (self.thissn == self.sn_check)
+
+                                print(f"Model: {model_ok}, Switch: {switch_ok} ",
+                                      f"Input: {input_ok}, SN: {sn_ok}")
+
+                                # ============================================================
+                                # XỬ LÝ PASS / FAIL
+                                # ============================================================
+                                if model_ok and switch_ok and input_ok and sn_ok:
+                                    # ============================================================
+                                    # PASS - Vẽ khung xanh
+                                    # ============================================================
+                                    if len(result[0]) >= 3:
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][0][0][0][0]), int(result[0][0][0][0][1])),
+                                                      (int(result[0][0][0][2][0]), int(result[0][0][0][2][1])),
+                                                      (0, 255, 0), 6, 6)
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][1][0][0][0]), int(result[0][1][0][0][1])),
+                                                      (int(result[0][1][0][2][0]), int(result[0][1][0][2][1])),
+                                                      (0, 255, 0), 6, 6)
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][2][0][0][0]), int(result[0][2][0][0][1])),
+                                                      (int(result[0][2][0][2][0]), int(result[0][2][0][2][1])),
+                                                      (0, 255, 0), 6, 6)
+
+                                    cv2.imwrite(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Pass.jpg",
+                                        need_show1)
+                                    self.UI_show(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Pass.jpg",
+                                        3, 2)
+                                    cv2.imwrite(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label1_Pass.jpg",
+                                        need_show2)
+                                    self.UI_show(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label1_Pass.jpg",
+                                        3, 1)
+
+                                    logging.info("content check OK")
+                                    self.myuihand.textbox.emit("content check OK")
+
+                                    # ============================================================
+                                    # YOLO INFERENCE
+                                    # ============================================================
+                                    inference_result = self.get_inference_result(step1_check)
+                                    logging.error("inference finish")
+                                    self.myuihand.textbox.emit("inference finish")
+                                    yolo_step1 = self.cambrian_space_SN(inference_result, image_numpy, step1_check_draw,
+                                                                        self.thissn)
+
+                                    if yolo_step1 == "Pass":
+                                        self.UI_show(
+                                            self.pciture_save + "//" + todaytime + "//" + self.thissn + "_" + self.img_time + "_pass.jpg",
+                                            3, 3)
+                                        logging.info("step1 check ok")
+                                        self.myuihand.textbox.emit("step1 check ok")
+                                        my_inference_result = "pass"
+
+                                        if my_inference_result == "pass":
+                                            self.resultcolor("Pass")
+                                            self.updatecount(str(int(self.lineEdit_4.text()) + 1),
+                                                             str(int(self.lineEdit_5.text()) + 1),
+                                                             self.lineEdit_6.text(),
+                                                             "%.2f%%" % ((int(self.lineEdit_5.text()) + 1) / (
+                                                                     int(self.lineEdit_4.text()) + 1) * 100))
+
+                                        if self.sfis_choose == True:
+                                            self.mysfis.data_upload(self.thissn, self.data)
+                                            logging.info("sfis upload OK")
+                                            self.myuihand.textbox.emit("sfis upload OK")
+
+                                        cv2.imwrite(
+                                            self.pciture_save + "//" + todaytime + "//" + self.thissn + " ALL PASS " + self.img_time + ".jpg",
+                                            image_numpy)
+                                        logging.info(self.thissn + " all test PASS")
+                                        self.myuihand.textbox.emit(self.thissn + " all test PASS")
+
+                                        self.step1 = True
+
+                                    elif yolo_step1 == "Fail":
+                                        self.UI_show(
+                                            self.pciture_save + "//" + todaytime + "//" + self.thissn + "_" + self.img_time + "_fail.jpg",
+                                            3, 1)
+                                        logging.info("step1 check fail")
+                                        self.myuihand.textbox.emit("step1 check fail")
+                                        self.step1 = False
+
+                                else:
+                                    # ============================================================
+                                    # FAIL - Vẽ khung đỏ + lưu ảnh debug
+                                    # ============================================================
+                                    if len(result[0]) >= 3:
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][0][0][0][0]), int(result[0][0][0][0][1])),
+                                                      (int(result[0][0][0][2][0]), int(result[0][0][0][2][1])),
+                                                      (0, 0, 255), 6, 6)
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][1][0][0][0]), int(result[0][1][0][0][1])),
+                                                      (int(result[0][1][0][2][0]), int(result[0][1][0][2][1])),
+                                                      (0, 0, 255), 6, 6)
+                                        cv2.rectangle(need_show1,
+                                                      (int(result[0][2][0][0][0]), int(result[0][2][0][0][1])),
+                                                      (int(result[0][2][0][2][0]), int(result[0][2][0][2][1])),
+                                                      (0, 0, 255), 6, 6)
+
+                                    cv2.imwrite(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Fail.jpg",
+                                        need_show1)
+                                    self.UI_show(
+                                        self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Fail.jpg",
+                                        3, 2)
+
+                                    # Log chi tiết lỗi
+                                    error_details = []
+                                    if not model_ok:
+                                        error_details.append(
+                                            f"Model: '{self.model}' (expected: {need_check.get('model')})")
+                                    if not switch_ok:
+                                        error_details.append(
+                                            f"Switch: '{self.switch}' (expected: {need_check.get('switch')})")
+                                    if not input_ok:
+                                        error_details.append(
+                                            f"Input: '{self.input}' (expected: {need_check.get('input')})")
+                                    # if not output_ok:
+                                    #     error_details.append(
+                                    #         f"Output: '{self.output}' (expected: {need_check.get('output')})")
+                                    # if not power_ok:
+                                    #     error_details.append(
+                                    #         f"Power: '{self.power}' (expected: {need_check.get('power')})")
+                                    if not sn_ok:
+                                        error_details.append(f"SN: '{self.sn_check}' (expected: '{self.thissn}')")
+
+                                    error_msg = " | ".join(error_details)
+                                    logging.error(f"content check FAIL: {error_msg}")
+                                    self.myuihand.textbox.emit(f"content check FAIL: {error_msg}")
+                                    self.step1 = False
+
+                        elif self.sfis_choose == False:
+                            # ============================================================
+                            # BYPASS SFIS
+                            # ============================================================
+                            logging.info(f"check route bypass")
+                            self.myuihand.textbox.emit("check route bypass")
+                            inference_result1 = self.get_inference_result(step1_check)
+                            print(inference_result1)
+                            logging.error("inference finish")
+                            self.myuihand.textbox.emit("inference finish")
+                            yolo_step1 = self.cambrian_space(inference_result1, image_numpy, step1_check_draw)
+
+                            if yolo_step1 == "Pass":
+                                self.UI_show(self.pciture_save + "//" + todaytime + "//" + self.img_time + "_pass.jpg",
+                                             6, 1)
+                                logging.info(self.scaninfo + " all test PASS")
+                                self.myuihand.textbox.emit(self.scaninfo + " all test PASS")
+                                cv2.imwrite(
+                                    self.pciture_save + "//" + todaytime + "//" + self.scaninfo + "ALL PASS " + self.img_time + ".jpg",
+                                    image_numpy)
+                                self.resultcolor("Pass")
+                                self.updatecount(str(int(self.lineEdit_4.text()) + 1),
+                                                 str(int(self.lineEdit_5.text()) + 1),
+                                                 self.lineEdit_6.text(),
+                                                 "%.2f%%" % ((int(self.lineEdit_5.text()) + 1) / (
+                                                         int(self.lineEdit_4.text()) + 1) * 100))
+                                if self.sfis_choose == True:
+                                    self.mysfis.data_upload(self.scaninfo, self.data)
+                                    logging.info("sfis upload OK")
+                                    self.myuihand.textbox.emit("sfis upload OK")
+                                self.step1 = True
+                            elif yolo_step1 == "Fail":
+                                self.UI_show(self.pciture_save + "//" + todaytime + "//" + self.img_time + "_fail.jpg",
+                                             1, 1)
+                                self.step1 = False
+
+                    elif self.cambrian_is_open == False:
+                        self.step1 = True
+
+        except Exception as e:
+            logging.error(str(e))
+            self.myuihand.textbox.emit(str(e))
