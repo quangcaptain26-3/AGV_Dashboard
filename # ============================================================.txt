@@ -1,0 +1,306 @@
+# ============================================================
+# BỘ GIÁ TRỊ CHUẨN (EXPECTED VALUE) DÙNG ĐỂ ĐỐI CHIẾU NHÃN SẢN PHẨM
+# Mỗi model (XE2, XE4, WORMHOLE...) có 1 dict riêng như thế này
+# ============================================================
+check_label_xe2 = {
+    "switch": "eero Switch",                                   # tên switch in trên nhãn phải khớp đúng chuỗi này
+    "model": ["M/N: XE02", "M/N: XEO2"],                        # cho phép 2 biến thể (OCR hay nhầm số 0 <-> chữ O)
+    "input": ["Input: 100-240V\~,1.67A,50-60Hz",                # 2 biến thể ký tự "~" bị OCR đọc lệch encoding
+              "Input: 100-240V~,1.67A,50-60Hz"]
+}
+
+
+# ============================================================
+# HÀM CHÍNH: KIỂM TRA NHÃN SẢN PHẨM Ở BƯỚC "STEP 1"
+# self          : instance của class UI/controller chính
+# image_numpy   : ảnh chụp từ camera (dạng numpy array, BGR)
+# stepname      : tên bước hiện tại, hàm này chỉ xử lý khi = "STEP 1"
+# ============================================================
+def show_image_Label_check(self, image_numpy, stepname):
+    try:
+        # ------------------------------------------------------
+        # Lưu ảnh gốc chụp được ra ổ đĩa (để truy vết / audit sau này)
+        # Tên file gồm: SN + tên bước + thời gian chụp
+        # ------------------------------------------------------
+        self.thissn = self.scaninfo
+        cv2.imwrite(
+            self.pciture_save + "/" + todaytime + "//" + self.thissn + "_" + stepname + "_" + self.img_time + ".jpg",
+            image_numpy)
+
+        # Chuyển ảnh màu -> ảnh xám để việc cắt vùng / xử lý sau đỡ nặng hơn
+        image_numpy = cv2.cvtColor(image_numpy, cv2.COLOR_BGR2GRAY)
+
+        if stepname == "STEP 1":
+            if self.sfis_choose == True:
+                # ========================================================
+                # BƯỚC 1: TRUY VẤN HỆ THỐNG SFIS ĐỂ BIẾT SẢN PHẨM NÀY
+                # THUỘC MODEL NÀO (dựa trên mã lệnh sản xuất "liaohao")
+                # ========================================================
+                print(self.thissn)
+                liaohao = (self.mysfis.get_sfis_90(self.thissn)).split("\x7f")[3].split("/")[0]
+                print(liaohao)
+
+                # ============================================================
+                # GÁN need_check DỰA TRÊN LIAOHAO
+                # -> mỗi model có bộ giá trị chuẩn khác nhau để so sánh sau này
+                # -> self.eero_model / eero_model1: 2 biến thể chuỗi model
+                #    (phòng trường hợp OCR đọc nhầm số 0 thành chữ O)
+                # ============================================================
+                if ("WORMHOLE.4" in liaohao or "WORMHOLE4" in liaohao):
+                    self.eero_model = "M/N: WH01"
+                    self.eero_model1 = "M/N: WHO1"
+                    need_check = check_label_worm4
+                elif ("WORMHOLE.2" in liaohao or "WORMHOLE2" in liaohao):
+                    self.eero_model = "M/N: WH02"
+                    self.eero_model1 = "M/N: WHO2"
+                    need_check = check_label_worm2
+                elif ("XENIA.2" in liaohao or "XENIA2" in liaohao):
+                    self.eero_model = "M/N: XE02"
+                    self.eero_model1 = "M/N: XEO2"
+                    need_check = check_label_xe2          # <-- model đang xử lý trong file này
+                elif ("XENIA.4" in liaohao or "XENIA4" in liaohao):
+                    self.eero_model = "M/N: XE01"
+                    self.eero_model1 = "M/N: XEO1"
+                    need_check = check_label_xe4
+                else:
+                    # Không nhận diện được model -> dừng xử lý, báo lỗi lên UI
+                    logging.error(f"Unknown liaohao: {liaohao}")
+                    self.myuihand.textbox.emit(f"Unknown liaohao: {liaohao}")
+                    return
+
+                print(self.eero_model, self.eero_model1)
+                print(need_check)
+
+                # ========================================================
+                # BƯỚC 2: CẮT ẢNH THEO TỪNG VÙNG ĐÃ ĐÁNH DẤU SẴN
+                # (self.barcode_point là file annotation kiểu labelme,
+                #  đã được setup thủ công từ trước, KHÔNG tự sinh lúc chạy)
+                # ========================================================
+                step1_check = []        # list ảnh đã cắt (đưa vào YOLO kiểm tra chất lượng)
+                step1_check_draw = []   # list toạ độ + nhãn số, dùng để vẽ lại lên ảnh kết quả
+                ok1 = self.barcode_point
+
+                for shape in ok1["shapes"]:
+                    label = shape['label']      # tên vùng: "1","2",..."6" hoặc "model"
+                    points = shape["points"]    # toạ độ 2 điểm góc [[x1,y1],[x2,y2]]
+
+                    # Nếu label là số 1-6 -> đây là các vùng chi tiết cần YOLO kiểm tra
+                    # (logo, mã vạch, dòng chữ...) đã được đặt tên số thủ công lúc setup
+                    if "1" in label or "2" in label or "3" in label or "4" in label or "5" in label or "6" in label:
+                        valuelist = [int(points[0][1]), int(points[1][1]), int(points[0][0]), int(points[1][0]),
+                                     label]
+                        y1, y2, x1, x2, label = valuelist
+                        cut_img_step1 = image_numpy[int(y1):int(y2), int(x1):int(x2)]  # cắt ảnh theo toạ độ
+                        step1_check_draw.append(valuelist)   # lưu lại toạ độ để vẽ số lên ảnh sau
+                        step1_check.append(cut_img_step1)    # lưu ảnh cắt để đưa vào model YOLO
+                        # cv2.imwrite(... )  # (đã comment - dòng debug cũ, không dùng nữa)
+
+                    # Nếu label = "model" -> đây là vùng chứa toàn bộ khối text nhãn
+                    # (Switch / Input / S-N) để đưa qua OCR ở bước sau
+                    elif label == "model":
+                        valuelist = [int(points[0][1]), int(points[1][1]), int(points[0][0]), int(points[1][0]),
+                                     label]
+                        y1, y2, x1, x2, label = valuelist
+                        cut_img = image_numpy[int(y1):int(y2), int(x1):int(x2)]
+                        cv2.imwrite("source/model.jpg", cut_img)   # lưu ra file tạm để OCR đọc
+
+                # Đọc lại 2 ảnh: ảnh nhãn vừa cắt, và ảnh mẫu chuẩn (dùng để hiển thị so sánh trên UI)
+                need_show1 = cv2.imread("source/model.jpg")
+                need_show2 = cv2.imread("source/XE02.jpg")
+
+                if self.cambrian_is_open:
+                    self.lineEdit_8.setText(self.thissn)
+
+                    if self.sfis_choose == True:
+                        # ============================================================
+                        # BƯỚC 3: CHECK ROUTE TRÊN SFIS
+                        # (kiểm tra xem SN này có đang đúng quy trình sản xuất không)
+                        # ============================================================
+                        self.sfisreturn = self.mysfis.check_route(self.thissn)
+                        if self.sfisreturn[0] == "0":
+                            # FAIL route -> thử auto repair (sửa lỗi tuyến tự động)
+                            logging.info(f"check route FAIL")
+                            self.myuihand.textbox.emit("check route FAIL")
+
+                            # Lần fail đầu tiên (LF#:0) -> repair lần 1
+                            if "[LF#:0]" in self.sfisreturn and "[REPAIR OF" in self.sfisreturn:
+                                sfisrepairreturn = self.mysfis.repair_SN(self.thissn)
+                                if sfisrepairreturn[0] == "1":
+                                    logging.info(f"first auto repair OK")
+                                    self.myuihand.textbox.emit(f"first auto repair OK")
+                                    self.check_result_OK = True
+                                elif sfisrepairreturn[0] == "0":
+                                    logging.info(f"first auto repair NG")
+                                    self.myuihand.textbox.emit(f"first auto repair NG")
+                                    self.check_result_OK = False
+                            # Lần fail thứ hai (LF#:1) -> repair lần 2
+                            elif "[LF#:1]" in self.sfisreturn and "[REPAIR OF" in self.sfisreturn:
+                                sfisrepairreturn = self.mysfis.repair_SN(self.thissn)
+                                if sfisrepairreturn[0] == "1":
+                                    logging.info(f"second auto repair OK")
+                                    self.myuihand.textbox.emit(f"second auto repair OK")
+                                    self.check_result_OK = True
+                                elif sfisrepairreturn[0] == "0":
+                                    logging.info(f"second auto repair NG")
+                                    self.myuihand.textbox.emit(f"second auto repair NG")
+                                    self.check_result_OK = False
+
+                        elif self.sfisreturn[0] == "1":
+                            # Route OK ngay từ đầu, không cần repair
+                            logging.info(f"check route OK")
+                            self.myuihand.textbox.emit("check route OK")
+                            self.check_result_OK = True
+
+                        # LƯU Ý: dòng này ép cứng luôn thành True, bỏ qua kết quả
+                        # check_result_OK thật sự phía trên -> có thể là code debug/tạm thời
+                        self.check_result_OK = True
+
+                        if self.check_result_OK:
+                            # ============================================================
+                            # BƯỚC 4: OCR ĐỌC NỘI DUNG NHÃN
+                            # Dùng PaddleOCR để đọc chữ trong ảnh "source/model.jpg"
+                            # ============================================================
+                            ocr = PaddleOCR(use_gpu=False, use_angle_cls=True, lang="ch", )
+                            img_path = "source/model.jpg"
+                            result = ocr.ocr(img_path, cls=True)
+                            # result[0] = list các dòng text OCR tìm được, mỗi dòng gồm:
+                            #   [ [4 điểm góc polygon], (text, confidence) ]
+                            # Thứ tự các dòng theo đúng thứ tự OCR quét được trên ảnh (trên -> dưới)
+
+                            # Khởi tạo giá trị mặc định trước khi parse OCR
+                            self.switch = ""
+                            self.model = ""
+                            self.input = ""
+                            self.sn_check = ""
+
+                            # Duyệt từng dòng OCR đọc được, phân loại theo từ khoá xuất hiện trong dòng
+                            for each_result in result[0]:
+                                text_raw = each_result[1][0]   # nội dung text của dòng này
+                                print(each_result[1][0])
+
+                                # Dòng chứa "M/N:" -> đây là dòng ghép "Switch | M/N: model"
+                                if "M/N:" in text_raw or "M/N" in text_raw:
+                                    text = re.sub(r'\s+', '', text_raw)   # xoá hết khoảng trắng để dễ tách chuỗi
+
+                                    # Lấy phần TRƯỚC "M/N" -> đó là tên switch
+                                    m = re.search(r'^(.*?)M/N', text, re.I)
+                                    if m:
+                                        self.switch = normalize_switch(m.group(1).replace("|", "").strip())
+                                    else:
+                                        self.switch = ""
+
+                                    # Lấy 9 ký tự bắt đầu từ "M/N:" -> đó là mã model (vd "M/N: XE02")
+                                    idx = text.upper().find("M/N:")
+                                    if idx != -1:
+                                        self.model = normalize_model(text[idx:idx + 9])
+                                    else:
+                                        self.model = ""
+
+                                    print(f"Switch: '{self.switch}', Model: '{self.model}'")
+
+                                # Dòng chứa "Input" -> lấy nguyên dòng làm giá trị input
+                                elif "Input" in text_raw:
+                                    self.input = normalize_input(text_raw)
+                                    print(f"Input: '{self.input}'")
+
+                                # Dòng chứa "S/N" -> đây là serial number in trên nhãn
+                                elif "S/N" in text_raw:
+                                    self.sn_check = normalize_sn(text_raw)
+                                    print(f"SN: '{self.sn_check}'")
+
+                            # ============================================================
+                            # KIỂM TRA (GỌN - DÙNG check_value)
+                            # So sánh giá trị đọc được (OCR) với giá trị chuẩn (need_check)
+                            # check_value có thể so khớp với 1 chuỗi hoặc 1 list nhiều biến thể
+                            # ============================================================
+                            model_ok = check_value(self.model, need_check.get("model"))
+                            switch_ok = check_value(self.switch, need_check.get("switch"))
+                            input_ok = check_value(self.input, need_check.get("input"))
+                            # SN thì so trực tiếp: SN đọc từ nhãn phải khớp đúng SN đã scan (self.thissn)
+                            sn_ok = (self.thissn == self.sn_check)
+
+                            print(f"Model: {model_ok}, Switch: {switch_ok} ",
+                                  f"Input: {input_ok}, SN: {sn_ok}")
+
+                            # ============================================================
+                            # XỬ LÝ PASS / FAIL
+                            # ============================================================
+                            if model_ok and switch_ok and input_ok and sn_ok:
+                                # ============================================================
+                                # TRƯỜNG HỢP PASS - Vẽ khung XANH quanh 3 dòng text OCR đầu tiên
+                                # (Switch, Input, S/N) để người vận hành nhìn trực quan
+                                # result[0][i][0][0] = điểm góc trên-trái của dòng i
+                                # result[0][i][0][2] = điểm góc dưới-phải của dòng i
+                                # ============================================================
+                                if len(result[0]) >= 3:
+                                    cv2.rectangle(need_show1,
+                                                  (int(result[0][0][0][0][0]), int(result[0][0][0][0][1])),
+                                                  (int(result[0][0][0][2][0]), int(result[0][0][0][2][1])),
+                                                  (0, 255, 0), 6, 6)   # dòng 0 (Switch/Model)
+                                    cv2.rectangle(need_show1,
+                                                  (int(result[0][1][0][0][0]), int(result[0][1][0][0][1])),
+                                                  (int(result[0][1][0][2][0]), int(result[0][1][0][2][1])),
+                                                  (0, 255, 0), 6, 6)   # dòng 1 (Input)
+                                    cv2.rectangle(need_show1,
+                                                  (int(result[0][2][0][0][0]), int(result[0][2][0][0][1])),
+                                                  (int(result[0][2][0][2][0]), int(result[0][2][0][2][1])),
+                                                  (0, 255, 0), 6, 6)   # dòng 2 (S/N)
+
+                                # Lưu ảnh đã khoanh xanh + hiển thị lên UI (khung số 3, vị trí số 2)
+                                cv2.imwrite(
+                                    self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Pass.jpg",
+                                    need_show1)
+                                self.UI_show(
+                                    self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label_Pass.jpg",
+                                    3, 2)
+                                # Lưu thêm ảnh mẫu chuẩn (need_show2) để hiển thị đối chiếu song song
+                                cv2.imwrite(
+                                    self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label1_Pass.jpg",
+                                    need_show2)
+                                self.UI_show(
+                                    self.pciture_save + "//" + todaytime + "//" + self.img_time + "_label1_Pass.jpg",
+                                    3, 1)
+
+                                logging.info("content check OK")
+                                self.myuihand.textbox.emit("content check OK")
+
+                                # ============================================================
+                                # BƯỚC 5: YOLO INFERENCE
+                                # Đưa các ảnh đã cắt theo số 1-6 (step1_check) vào model YOLO
+                                # để kiểm tra chất lượng in ấn / vị trí (méo, mờ, lệch...)
+                                # ============================================================
+                                inference_result = self.get_inference_result(step1_check)
+                                logging.error("inference finish")
+                                self.myuihand.textbox.emit("inference finish")
+                                # cambrian_space_SN: xử lý kết quả YOLO, đồng thời vẽ lại số 1-6
+                                # + mũi tên lên ảnh gốc dựa theo toạ độ trong step1_check_draw
+                                yolo_step1 = self.cambrian_space_SN(inference_result, image_numpy, step1_check_draw,
+                                                                    self.thissn)
+
+                                if yolo_step1 == "Pass":
+                                    # Tất cả đều đạt -> hiển thị PASS, cập nhật thống kê, upload SFIS
+                                    self.UI_show(
+                                        self.pciture_save + "//" + todaytime + "//" + self.thissn + "_" + self.img_time + "_pass.jpg",
+                                        3, 3)
+                                    logging.info("step1 check ok")
+                                    self.myuihand.textbox.emit("step1 check ok")
+                                    my_inference_result = "pass"
+
+                                    if my_inference_result == "pass":
+                                        self.resultcolor("Pass")   # đổi màu ô kết quả trên UI thành xanh
+                                        # Cập nhật số liệu: Total+1, Pass+1, Fail giữ nguyên, tính lại % Yield Rate
+                                        self.updatecount(str(int(self.lineEdit_4.text()) + 1),
+                                                         str(int(self.lineEdit_5.text()) + 1),
+                                                         self.lineEdit_6.text(),
+                                                         "%.2f%%" % ((int(self.lineEdit_5.text()) + 1) / (
+                                                                 int(self.lineEdit_4.text()) + 1) * 100))
+
+                                    if self.sfis_choose == True:
+                                        # Upload kết quả kiểm tra lên hệ thống SFIS
+                                        self.mysfis.data_upload(self.thissn, self.data)
+                                        logging.info("sfis upload OK")
+                                        self.myuihand.textbox.emit("sfis upload OK")
+
+                                    # Lưu ảnh tổng kết "ALL PASS"
+                                    cv2.imwrite(
+                                        self.pciture_save + "//" + todaytime + "//" + self.thissn 
